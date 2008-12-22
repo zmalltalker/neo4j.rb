@@ -92,7 +92,6 @@ module Neo4j
       # The value of the evaluated provided block
       #
       # :api: public
-      #
       def run
         $NEO_LOGGER.info{"new transaction " + called}
         raise ArgumentError.new("Expected a block to run in Transaction.run") unless block_given?
@@ -141,6 +140,7 @@ module Neo4j
       @id = @@counter
       @failure = false      
       @nodes_to_be_reindexed = {}
+      @broadcast_event = []
       Thread.current[:transaction] = self
       $NEO_LOGGER.debug{"create #{self.to_s}"}
     end
@@ -183,6 +183,18 @@ module Neo4j
       unless failure?
         @nodes_to_be_reindexed.each_value {|node| node.reindex!}
         @nodes_to_be_reindexed.clear
+        unless @broadcast_event.empty? and Neo4j::Config[:cluster_master]
+          puts "Broadcasting #{@broadcast_event.size} events"
+          handler = Cluster::MessageProducer.new
+          @broadcast_event.each do |event|
+            next unless event.respond_to?(:replicate)
+            ruby_code = event.replicate
+            puts "Send message '#{ruby_code}'"
+            handler.send_message(ruby_code)
+          end
+          handler.close
+          puts "Closed message handler"
+        end
       end
       
       @neo_tx.finish
@@ -194,13 +206,13 @@ module Neo4j
         
         # mark lucene transaction for failure if the neo transaction fails
         Lucene::Transaction.current.failure if failure?
-        Lucene::Transaction.current.commit 
+        Lucene::Transaction.current.commit
       else
         $NEO_LOGGER.debug{"NO LUCENE TX running"}
       end
           
       
-      $NEO_LOGGER.info{"finished #{self.to_s}"}                  
+      $NEO_LOGGER.info{"finished #{self.to_s}"}
     end
 
     # Marks this transaction as failed, which means that it will inexplicably
@@ -211,7 +223,7 @@ module Neo4j
       raise NotInTransactionError.new unless Transaction.running?
       @neo_tx.failure
       @failure = true
-      $NEO_LOGGER.info{"failure #{self.to_s}"}                        
+      $NEO_LOGGER.info{"failure #{self.to_s}"}
     end
     
     # Marks a node to be reindexed before the transaction ends
@@ -220,7 +232,10 @@ module Neo4j
     def reindex(node)
       @nodes_to_be_reindexed[node.neo_node_id] = node
     end
-    
+
+    def broadcast_event(event)
+      @broadcast_event << event
+    end
   end
   
   #
@@ -237,7 +252,7 @@ module Neo4j
     
     #
     # Do nothing since Neo4j does not support chained transactions.
-    # 
+    #
     def finish
       $NEO_LOGGER.info{"tried to finish chained transaction #{@tx}"}
     end

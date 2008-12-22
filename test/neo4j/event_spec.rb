@@ -8,17 +8,6 @@ require 'neo4j/spec_helper'
 include Neo4j
 
 
-#Product.update_index_when(PropertyChangedEvent).fired_on(Customer).with_property('age')).for_each_relation(:orders) do |index, customer, relation, order|
-#  order.relations(:products).each do |r|
-#    index << {:id => "#{product.neo_node_id}.#{relation.neo_relation_id}.#{r.neo_relation_id}", :"orders.customer.age" => order.total_cost}
-#  end
-#end
-
-class Person
-  include Neo4j::NodeMixin
-  property :age
-end
-
 
 describe "Event" do
 
@@ -33,19 +22,56 @@ describe "Event" do
   end
   
   
-    it "should not match event of correct type and incorrect property value" do
-      e = Neo4j::PropertyChangedEvent.new("some_node", "age", "29", "30")
-      Neo4j::PropertyChangedEvent.trigger?(e, :property, :name).should be_false
-    end
+  it "should not match event of correct type and incorrect property value" do
+    e = Neo4j::PropertyChangedEvent.new("some_node", "age", "29", "30")
+    Neo4j::PropertyChangedEvent.trigger?(e, :property, :name).should be_false
+  end
   
-   it "should not match event of correct type and correct property value and incorrect property name" do
-      e = Neo4j::PropertyChangedEvent.new("some_node", "age", "29", "30")
-      Neo4j::PropertyChangedEvent.trigger?(e, :relation, :name).should be_false
-    end
+  it "should not match event of correct type and correct property value and incorrect property name" do
+    e = Neo4j::PropertyChangedEvent.new("some_node", "age", "29", "30")
+    Neo4j::PropertyChangedEvent.trigger?(e, :relation, :name).should be_false
+  end
   
-    it "should match event of incorrect correct type and incorrect property value" do
-      e = Neo4j::PropertyChangedEvent.new("some_node", "age", "29", "30")
-      Neo4j::RelationshipAddedEvent.trigger?(e).should be_false
+  it "should match event of incorrect correct type and incorrect property value" do
+    e = Neo4j::PropertyChangedEvent.new("some_node", "age", "29", "30")
+    Neo4j::RelationshipAddedEvent.trigger?(e).should be_false
+  end
+
+end
+
+
+describe "Event replicated" do
+  before(:each) do
+    start
+    undefine_class :Person
+    class Person
+      include Neo4j::NodeMixin
+      property :age
     end
+    Neo4j::Config[:cluster_master] = true
+  end
+  after(:each) do
+    stop
+  end
+  
+  it "should create a new node on Neo4j::NodeCreatedEvent" do
+    pending
+    node = mock('Node')
+    node.stub!(:neo_node_id).and_return("1")
+    node.stub!(:class).and_return(Person)
+    
+    event = Neo4j::NodeCreatedEvent.new(node)
+    k = eval(event.replicate)
+    k.should be_instance_of(Person)
+  end
+
+  it "should create a new node on Neo4j::NodeCreatedEvent" do
+    person = Person.new
+    event = Neo4j::PropertyChangedEvent.new(person, :age, "10", "11")
+    k = eval(event.replicate)
+    k.should be_instance_of(Person)
+    k.age.should == "11"
+    puts k, k.class.to_s, k.neo_node_id
+  end
 
 end

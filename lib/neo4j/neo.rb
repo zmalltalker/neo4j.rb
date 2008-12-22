@@ -17,8 +17,20 @@ module Neo4j
     return if @instance
     @instance = Neo.new 
     @instance.start
+
+    if Neo4j::Config[:cluster_slave]
+      puts "start new cluster slave"
+      @cluster_slave = Cluster::MessageConsumer.new
+      @cluster_slave.run
+      puts "running cluster slave"
+    end
     at_exit do
       Neo4j.stop
+      if @cluster_slave
+        puts "Stopping cluster slave ..."
+        @cluster_slave.close
+        puts "Stopped cluster slave - done"
+      end
     end
     @instance
   end

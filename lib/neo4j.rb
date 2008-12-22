@@ -34,7 +34,10 @@ require 'neo4j/transaction'
 require 'neo4j/search_result'
 require 'neo4j/version'
 
-
+# cluster - experimental !
+require 'cluster/jars'
+require 'cluster/message_producer'
+require 'cluster/message_consumer'
 
 # 
 # Set logger used by Neo4j

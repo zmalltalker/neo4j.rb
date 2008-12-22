@@ -33,6 +33,15 @@ module Neo4j
       return event.send(prop_name).to_s == prop_value.to_s
     end    
 
+    def replicate
+      # TODO, now only support propeties of type string
+      <<-END
+      n = Neo4j.load(#{self.node.neo_node_id})
+      n.#{@property}="#{@new_value}"
+      n
+      END
+    end
+
     def to_s
       "#{super} prop: #{@property} old: '#{@old_value}' new: '#{@new_value}'"
     end
@@ -77,5 +86,12 @@ module Neo4j
     def initialize(node)
       super node
     end
+
+    def replicate
+      <<-END
+      #{self.node.class.to_s}.new
+      END
+    end
   end
+
 end

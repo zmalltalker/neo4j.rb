@@ -16,7 +16,9 @@ module Neo4j
       # :api: private
       def defaults
         @defaults ||= {
-          :storage_path => 'tmp/neo4j'
+          :storage_path => 'tmp/neo4j',
+          :cluster_slave => false,
+          :cluster_master => false
         }
       end
 

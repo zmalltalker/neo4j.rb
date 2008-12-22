@@ -391,6 +391,7 @@ module Neo4j
       # @api private
       def fire_event(event)
         index_triggers.each_value {|trigger| trigger.call(event.node, event)}
+        Transaction.current.broadcast_event(event)
       end
       
       
